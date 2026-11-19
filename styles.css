@@ -38,17 +38,17 @@ header p {
 
 .controls {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     justify-content: center;
     margin-bottom: 20px;
     flex-wrap: wrap;
 }
 
 .btn {
-    padding: 12px 24px;
+    padding: 12px 20px;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.3s ease;
     font-weight: 600;
@@ -81,6 +81,17 @@ header p {
     box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 }
 
+.btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #d32f2f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+}
+
 .btn-info {
     background: #00BCD4;
     color: white;
@@ -92,27 +103,25 @@ header p {
     box-shadow: 0 4px 12px rgba(0, 188, 212, 0.4);
 }
 
-.btn-danger {
-    background: #f44336;
-    color: white;
-    padding: 6px 12px;
-    font-size: 14px;
-}
-
-.btn-danger:hover {
-    background: #d32f2f;
-}
-
-.btn-edit {
+.btn-warning {
     background: #FF9800;
     color: white;
-    padding: 6px 12px;
-    font-size: 14px;
-    margin-right: 5px;
 }
 
-.btn-edit:hover {
+.btn-warning:hover:not(:disabled) {
     background: #F57C00;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+}
+
+.btn-secondary {
+    background: #9E9E9E;
+    color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #757575;
+    transform: translateY(-2px);
 }
 
 .status {
@@ -141,14 +150,116 @@ header p {
     border: 1px solid #bee5eb;
 }
 
-.table-container {
+.status.warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+/* Камера */
+.camera-container {
+    position: relative;
+    max-width: 640px;
+    margin: 20px auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+#video {
+    width: 100%;
+    display: block;
+}
+
+.scanner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.scanner-frame {
+    width: 250px;
+    height: 150px;
+    border: 3px solid #4CAF50;
+    border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% {
+        border-color: #4CAF50;
+    }
+    50% {
+        border-color: #81C784;
+    }
+}
+
+.scanner-text {
+    color: white;
+    margin-top: 20px;
+    font-size: 16px;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+#btnStopScan {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+/* Ручной ввод */
+.manual-input {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.manual-input input {
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    min-width: 300px;
+    flex: 1;
+}
+
+.manual-input input:focus {
+    outline: none;
+    border-color: #2196F3;
+}
+
+/* Таблицы */
+.view-section {
+    margin-top: 30px;
+}
+
+.view-section h2 {
+    color: #333;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.table-wrapper {
     overflow-x: auto;
+    margin-bottom: 20px;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
 }
 
 thead {
@@ -165,7 +276,7 @@ th, td {
 th {
     font-weight: 600;
     text-transform: uppercase;
-    font-size: 0.9em;
+    font-size: 0.85em;
     letter-spacing: 0.5px;
 }
 
@@ -177,6 +288,14 @@ tbody tr:nth-child(even) {
     background: #fafafa;
 }
 
+.sgtin-code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #666;
+    word-break: break-all;
+}
+
+/* Модальное окно */
 .modal {
     display: none;
     position: fixed;
@@ -185,7 +304,7 @@ tbody tr:nth-child(even) {
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.6);
     animation: fadeIn 0.3s;
 }
 
@@ -196,7 +315,7 @@ tbody tr:nth-child(even) {
 
 .modal-content {
     background-color: white;
-    margin: 10% auto;
+    margin: 15% auto;
     padding: 30px;
     border-radius: 12px;
     width: 90%;
@@ -229,31 +348,17 @@ tbody tr:nth-child(even) {
     color: #000;
 }
 
-.form-group {
-    margin-bottom: 20px;
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
 }
 
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: #333;
-    font-weight: 600;
+.modal-buttons .btn {
+    flex: 1;
 }
 
-.form-group input {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #ddd;
-    border-radius: 6px;
-    font-size: 16px;
-    transition: border-color 0.3s;
-}
-
-.form-group input:focus {
-    outline: none;
-    border-color: #2196F3;
-}
-
+/* Адаптивность */
 @media (max-width: 768px) {
     .container {
         padding: 15px;
@@ -271,42 +376,21 @@ tbody tr:nth-child(even) {
         width: 100%;
     }
     
+    .manual-input {
+        flex-direction: column;
+    }
+    
+    .manual-input input {
+        min-width: 100%;
+    }
+    
     th, td {
         padding: 8px;
-        font-size: 14px;
+        font-size: 13px;
     }
-}
-.btn-secondary {
-    background: #9E9E9E;
-    color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-    background: #757575;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(158, 158, 158, 0.4);
-}
-
-.btn-secondary.active {
-    background: #4CAF50;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+    
+    .scanner-frame {
+        width: 200px;
+        height: 120px;
     }
-    70% {
-        box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
-    }
-}
-
-.status.autosave {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #a5d6a7;
-    font-size: 0.9em;
 }
