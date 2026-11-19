@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аптека - Управление лекарствами</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+    <meta name="theme-color" content="#2196F3">
+    <meta name="description" content="PWA приложение для управления списком лекарств">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💊 Аптека</h1>
+            <p>Управление запасами лекарств</p>
+        </header>
+
+        <div class="controls">
+            <button id="btnOpen" class="btn btn-primary">📂 Открыть файл</button>
+            <button id="btnSave" class="btn btn-success" disabled>💾 Сохранить</button>
+            <button id="btnAdd" class="btn btn-info" disabled>➕ Добавить</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="tableContainer" class="table-container" style="display: none;">
+            <table id="medicineTable">
+                <thead>
+                    <tr>
+                        <th>Баркод</th>
+                        <th>Лекарство</th>
+                        <th>Количество</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="editModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="modalTitle">Редактировать лекарство</h2>
+                <form id="editForm">
+                    <div class="form-group">
+                        <label for="barcode">Баркод:</label>
+                        <input type="text" id="barcode" required pattern="[0-9]+">
+                    </div>
+                    <div class="form-group">
+                        <label for="name">Название:</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="quantity">Количество:</label>
+                        <input type="number" id="quantity" required min="0">
+                    </div>
+                    <button type="submit" class="btn btn-success">Сохранить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
