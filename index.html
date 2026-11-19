@@ -2,18 +2,17 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
     <title>Сканер SGTIN - Учет лекарств</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="styles.css">
     <meta name="theme-color" content="#2196F3">
-    <meta name="description" content="PWA для сканирования SGTIN кодов лекарств">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>📱 Сканер SGTIN</h1>
-            <p>Учет запасов и продаж лекарств</p>
+            <p>Учет запасов и продаж (DataMatrix)</p>
         </header>
 
         <div class="controls">
@@ -26,60 +25,42 @@
 
         <div id="status" class="status"></div>
 
-        <!-- Камера -->
-        <div id="cameraContainer" class="camera-container" style="display: none;">
-            <video id="video" autoplay playsinline></video>
-            <canvas id="canvas" style="display: none;"></canvas>
-            <div class="scanner-overlay">
-                <div class="scanner-frame"></div>
-                <p class="scanner-text">Наведите камеру на штрихкод</p>
-            </div>
-            <button id="btnStopScan" class="btn btn-secondary">❌ Закрыть камеру</button>
+        <!-- Контейнер камеры (стилизован под ваш пример) -->
+        <div id="cameraContainer" class="camera-wrapper" style="display: none;">
+            <div id="reader"></div>
+            <button id="btnStopScan" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">❌ Закрыть камеру</button>
         </div>
 
         <!-- Ручной ввод -->
         <div id="manualInput" class="manual-input">
-            <input type="text" id="sgtinInput" placeholder="Введите SGTIN вручную" pattern="[0-9A-Za-z]+">
+            <input type="text" id="sgtinInput" placeholder="Введите SGTIN вручную">
             <button id="btnManualSubmit" class="btn btn-primary">➡️ Обработать</button>
         </div>
 
-        <!-- Таблица запасов -->
+        <!-- Таблицы -->
         <div id="storeView" class="view-section" style="display: none;">
             <h2>📦 Запасы на складе</h2>
             <div class="table-wrapper">
                 <table id="storeTable">
-                    <thead>
-                        <tr>
-                            <th>SGTIN</th>
-                            <th>Название</th>
-                            <th>Действие</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>SGTIN</th><th>Название</th><th>Действие</th></tr></thead>
                     <tbody id="storeBody"></tbody>
                 </table>
             </div>
             <button id="btnCloseStore" class="btn btn-secondary">← Назад</button>
         </div>
 
-        <!-- Таблица продаж -->
         <div id="salesView" class="view-section" style="display: none;">
             <h2>💰 Проданные лекарства</h2>
             <div class="table-wrapper">
                 <table id="salesTable">
-                    <thead>
-                        <tr>
-                            <th>SGTIN</th>
-                            <th>Название</th>
-                            <th>Действие</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>SGTIN</th><th>Название</th><th>Действие</th></tr></thead>
                     <tbody id="salesBody"></tbody>
                 </table>
             </div>
             <button id="btnCloseSales" class="btn btn-secondary">← Назад</button>
         </div>
 
-        <!-- Модальное окно подтверждения -->
+        <!-- Модальное окно -->
         <div id="confirmModal" class="modal" style="display: none;">
             <div class="modal-content">
                 <span class="close">&times;</span>
@@ -93,7 +74,8 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- Подключаем локальную библиотеку -->
+    <script src="html5-qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
