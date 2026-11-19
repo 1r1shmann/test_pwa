@@ -2,6 +2,9 @@
 let fileHandle = null;
 let medicines = [];
 let editingIndex = null;
+let autoSaveEnabled = false;
+let saveTimeout = null;
+let hasUnsavedChanges = false;
 
 // DOM элементы
 const btnOpen = document.getElementById('btnOpen');
@@ -19,10 +22,16 @@ const closeBtn = document.querySelector('.close');
 function showStatus(message, type = 'info') {
     statusDiv.textContent = message;
     statusDiv.className = `status ${type}`;
-    setTimeout(() => {
-        statusDiv.textContent = '';
-        statusDiv.className = 'status';
-    }, 5000);
+    
+    // Не скрывать статус автосохранения слишком быстро
+    if (type !== 'autosave') {
+        setTimeout(() => {
+            if (statusDiv.textContent === message) {
+                statusDiv.textContent = '';
+                statusDiv.className = 'status';
+            }
+        }, 5000);
+    }
 }
 
 // Проверка поддержки API
@@ -57,7 +66,14 @@ async function openFile() {
         
         renderTable();
         enableButtons();
+        hasUnsavedChanges = false;
+        updateSaveButtonState();
         showStatus(`✅ Файл загружен: ${medicines.length} записей`, 'success');
+        
+        // Если автосохранение включено, показать уведомление
+        if (autoSaveEnabled) {
+            showStatus('✅ Автосохранение включено', 'autosave');
+        }
         
     } catch (err) {
         if (err.name !== 'AbortError') {
@@ -68,10 +84,10 @@ async function openFile() {
 }
 
 // Сохранить изменения в файл
-async function saveFile() {
+async function saveFile(showNotification = true) {
     if (!fileHandle) {
         showStatus('❌ Сначала откройте файл', 'error');
-        return;
+        return false;
     }
     
     try {
@@ -79,12 +95,40 @@ async function saveFile() {
         await writable.write(JSON.stringify(medicines, null, 2));
         await writable.close();
         
-        showStatus('✅ Файл успешно сохранен!', 'success');
+        hasUnsavedChanges = false;
+        updateSaveButtonState();
+        
+        if (showNotification) {
+            showStatus('✅ Файл успешно сохранен!', 'success');
+        } else {
+            showStatus('💾 Автосохранено', 'autosave');
+        }
+        
+        return true;
         
     } catch (err) {
         console.error('Ошибка сохранения:', err);
         showStatus('❌ Ошибка сохранения: ' + err.message, 'error');
+        return false;
     }
+}
+
+// Отложить сохранение (для автосохранения)
+function scheduleAutoSave() {
+    if (!autoSaveEnabled || !fileHandle) return;
+    
+    hasUnsavedChanges = true;
+    updateSaveButtonState();
+    
+    // Очистить предыдущий таймер
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+    }
+    
+    // Сохранить через 2 секунды после последнего изменения
+    saveTimeout = setTimeout(() => {
+        saveFile(false);
+    }, 2000);
 }
 
 // Отрисовать таблицу
@@ -119,6 +163,45 @@ function renderTable() {
 function enableButtons() {
     btnSave.disabled = false;
     btnAdd.disabled = false;
+    document.getElementById('btnAutoSave').disabled = false;
+}
+
+// Обновить состояние кнопки сохранения
+function updateSaveButtonState() {
+    if (hasUnsavedChanges) {
+        btnSave.innerHTML = '💾 Сохранить*';
+        btnSave.style.background = '#FF9800';
+    } else {
+        btnSave.innerHTML = '💾 Сохранить';
+        btnSave.style.background = '';
+    }
+}
+
+// Переключить автосохранение
+function toggleAutoSave() {
+    autoSaveEnabled = !autoSaveEnabled;
+    const btn = document.getElementById('btnAutoSave');
+    
+    if (autoSaveEnabled) {
+        btn.classList.add('active');
+        btn.innerHTML = '🔄 Автосохранение: ВКЛ';
+        showStatus('✅ Автосохранение включено', 'autosave');
+        
+        // Если есть несохраненные изменения, сохранить сразу
+        if (hasUnsavedChanges && fileHandle) {
+            saveFile(false);
+        }
+    } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '🔄 Автосохранение: ВЫКЛ';
+        showStatus('ℹ️ Автосохранение выключено', 'info');
+        
+        // Очистить таймер
+        if (saveTimeout) {
+            clearTimeout(saveTimeout);
+            saveTimeout = null;
+        }
+    }
 }
 
 // Добавить новое лекарство
@@ -149,7 +232,8 @@ function deleteMedicine(index) {
     if (confirm('Вы уверены, что хотите удалить это лекарство?')) {
         medicines.splice(index, 1);
         renderTable();
-        showStatus('🗑️ Лекарство удалено. Не забудьте сохранить изменения!', 'info');
+        scheduleAutoSave();
+        showStatus('🗑️ Лекарство удалено', 'info');
     }
 }
 
@@ -170,14 +254,15 @@ editForm.addEventListener('submit', function(e) {
     if (editingIndex !== null) {
         // Редактирование существующего
         medicines[editingIndex] = medicine;
-        showStatus('✏️ Лекарство обновлено. Не забудьте сохранить!', 'info');
+        showStatus('✏️ Лекарство обновлено', 'info');
     } else {
         // Добавление нового
         medicines.push(medicine);
-        showStatus('➕ Лекарство добавлено. Не забудьте сохранить!', 'info');
+        showStatus('➕ Лекарство добавлено', 'info');
     }
     
     renderTable();
+    scheduleAutoSave();
     closeModal();
 });
 
@@ -198,10 +283,20 @@ window.addEventListener('click', function(e) {
     }
 });
 
+// Предупреждение при закрытии страницы с несохраненными изменениями
+window.addEventListener('beforeunload', function(e) {
+    if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
 // Event listeners
 btnOpen.addEventListener('click', openFile);
-btnSave.addEventListener('click', saveFile);
+btnSave.addEventListener('click', () => saveFile(true));
 btnAdd.addEventListener('click', addMedicine);
+
+document.getElementById('btnAutoSave').addEventListener('click', toggleAutoSave);
 
 // Инициализация
 checkSupport();
