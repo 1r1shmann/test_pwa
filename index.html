@@ -3,66 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аптека - Управление лекарствами</title>
+    <title>Сканер SGTIN - Учет лекарств</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="styles.css">
     <meta name="theme-color" content="#2196F3">
-    <meta name="description" content="PWA приложение для управления списком лекарств">
+    <meta name="description" content="PWA для сканирования SGTIN кодов лекарств">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>💊 Аптека</h1>
-            <p>Управление запасами лекарств</p>
+            <h1>📱 Сканер SGTIN</h1>
+            <p>Учет запасов и продаж лекарств</p>
         </header>
 
         <div class="controls">
-            <button id="btnOpen" class="btn btn-primary">📂 Открыть файл</button>
+            <button id="btnOpen" class="btn btn-primary">📂 Открыть базу</button>
             <button id="btnSave" class="btn btn-success" disabled>💾 Сохранить</button>
-            <button id="btnAutoSave" class="btn btn-secondary" disabled>🔄 Автосохранение: ВЫКЛ</button>
-            <button id="btnAdd" class="btn btn-info" disabled>➕ Добавить</button>
+            <button id="btnScan" class="btn btn-danger" disabled>📷 Сканировать</button>
+            <button id="btnViewStore" class="btn btn-info" disabled>📦 Запасы (<span id="storeCount">0</span>)</button>
+            <button id="btnViewSales" class="btn btn-warning" disabled>💰 Продажи (<span id="salesCount">0</span>)</button>
         </div>
 
         <div id="status" class="status"></div>
 
-        <div id="tableContainer" class="table-container" style="display: none;">
-            <table id="medicineTable">
-                <thead>
-                    <tr>
-                        <th>Баркод</th>
-                        <th>Лекарство</th>
-                        <th>Количество</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                </tbody>
-            </table>
+        <!-- Камера -->
+        <div id="cameraContainer" class="camera-container" style="display: none;">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <div class="scanner-overlay">
+                <div class="scanner-frame"></div>
+                <p class="scanner-text">Наведите камеру на штрихкод</p>
+            </div>
+            <button id="btnStopScan" class="btn btn-secondary">❌ Закрыть камеру</button>
         </div>
 
-        <div id="editModal" class="modal" style="display: none;">
+        <!-- Ручной ввод -->
+        <div id="manualInput" class="manual-input">
+            <input type="text" id="sgtinInput" placeholder="Введите SGTIN вручную" pattern="[0-9A-Za-z]+">
+            <button id="btnManualSubmit" class="btn btn-primary">➡️ Обработать</button>
+        </div>
+
+        <!-- Таблица запасов -->
+        <div id="storeView" class="view-section" style="display: none;">
+            <h2>📦 Запасы на складе</h2>
+            <div class="table-wrapper">
+                <table id="storeTable">
+                    <thead>
+                        <tr>
+                            <th>SGTIN</th>
+                            <th>Название</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="storeBody"></tbody>
+                </table>
+            </div>
+            <button id="btnCloseStore" class="btn btn-secondary">← Назад</button>
+        </div>
+
+        <!-- Таблица продаж -->
+        <div id="salesView" class="view-section" style="display: none;">
+            <h2>💰 Проданные лекарства</h2>
+            <div class="table-wrapper">
+                <table id="salesTable">
+                    <thead>
+                        <tr>
+                            <th>SGTIN</th>
+                            <th>Название</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesBody"></tbody>
+                </table>
+            </div>
+            <button id="btnCloseSales" class="btn btn-secondary">← Назад</button>
+        </div>
+
+        <!-- Модальное окно подтверждения -->
+        <div id="confirmModal" class="modal" style="display: none;">
             <div class="modal-content">
                 <span class="close">&times;</span>
-                <h2 id="modalTitle">Редактировать лекарство</h2>
-                <form id="editForm">
-                    <div class="form-group">
-                        <label for="barcode">Баркод:</label>
-                        <input type="text" id="barcode" required pattern="[0-9]+">
-                    </div>
-                    <div class="form-group">
-                        <label for="name">Название:</label>
-                        <input type="text" id="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="quantity">Количество:</label>
-                        <input type="number" id="quantity" required min="0">
-                    </div>
-                    <button type="submit" class="btn btn-success">Сохранить</button>
-                </form>
+                <h2 id="confirmTitle">Подтверждение</h2>
+                <p id="confirmMessage"></p>
+                <div class="modal-buttons">
+                    <button id="btnConfirmYes" class="btn btn-success">✅ Да</button>
+                    <button id="btnConfirmNo" class="btn btn-danger">❌ Нет</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
