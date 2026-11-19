@@ -1,21 +1,37 @@
 // Глобальные переменные
 let fileHandle = null;
-let medicines = [];
-let editingIndex = null;
-let autoSaveEnabled = false;
-let saveTimeout = null;
-let hasUnsavedChanges = false;
+let database = {
+    store: [],
+    sales: []
+};
+let html5QrCode = null;
+let isScanning = false;
+let confirmCallback = null;
 
 // DOM элементы
 const btnOpen = document.getElementById('btnOpen');
 const btnSave = document.getElementById('btnSave');
-const btnAdd = document.getElementById('btnAdd');
+const btnScan = document.getElementById('btnScan');
+const btnViewStore = document.getElementById('btnViewStore');
+const btnViewSales = document.getElementById('btnViewSales');
 const statusDiv = document.getElementById('status');
-const tableContainer = document.getElementById('tableContainer');
-const tableBody = document.getElementById('tableBody');
-const modal = document.getElementById('editModal');
-const modalTitle = document.getElementById('modalTitle');
-const editForm = document.getElementById('editForm');
+const cameraContainer = document.getElementById('cameraContainer');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const btnStopScan = document.getElementById('btnStopScan');
+const sgtinInput = document.getElementById('sgtinInput');
+const btnManualSubmit = document.getElementById('btnManualSubmit');
+const storeView = document.getElementById('storeView');
+const salesView = document.getElementById('salesView');
+const storeBody = document.getElementById('storeBody');
+const salesBody = document.getElementById('salesBody');
+const storeCount = document.getElementById('storeCount');
+const salesCount = document.getElementById('salesCount');
+const confirmModal = document.getElementById('confirmModal');
+const confirmTitle = document.getElementById('confirmTitle');
+const confirmMessage = document.getElementById('confirmMessage');
+const btnConfirmYes = document.getElementById('btnConfirmYes');
+const btnConfirmNo = document.getElementById('btnConfirmNo');
 const closeBtn = document.querySelector('.close');
 
 // Показать сообщение
@@ -23,7 +39,6 @@ function showStatus(message, type = 'info') {
     statusDiv.textContent = message;
     statusDiv.className = `status ${type}`;
     
-    // Не скрывать статус автосохранения слишком быстро
     if (type !== 'autosave') {
         setTimeout(() => {
             if (statusDiv.textContent === message) {
@@ -44,12 +59,12 @@ function checkSupport() {
     return true;
 }
 
-// Открыть JSON файл
+// Открыть JSON файл базы данных
 async function openFile() {
     try {
         const [handle] = await window.showOpenFilePicker({
             types: [{
-                description: 'JSON Files',
+                description: 'JSON Database Files',
                 accept: { 'application/json': ['.json'] }
             }]
         });
@@ -58,22 +73,22 @@ async function openFile() {
         const file = await fileHandle.getFile();
         const content = await file.text();
         
-        medicines = JSON.parse(content);
+        database = JSON.parse(content);
         
-        if (!Array.isArray(medicines)) {
-            throw new Error('Файл должен содержать массив объектов');
+        // Валидация структуры
+        if (!database.store || !Array.isArray(database.store)) {
+            database.store = [];
+        }
+        if (!database.sales || !Array.isArray(database.sales)) {
+            database.sales = [];
         }
         
-        renderTable();
+        updateCounts();
         enableButtons();
-        hasUnsavedChanges = false;
-        updateSaveButtonState();
-        showStatus(`✅ Файл загружен: ${medicines.length} записей`, 'success');
+        showStatus(`✅ База загружена: ${database.store.length} в запасах, ${database.sales.length} в продажах`, 'success');
         
-        // Если автосохранение включено, показать уведомление
-        if (autoSaveEnabled) {
-            showStatus('✅ Автосохранение включено', 'autosave');
-        }
+        // Автосохранение включено по умолчанию
+        showStatus('💾 Автосохранение активно', 'autosave');
         
     } catch (err) {
         if (err.name !== 'AbortError') {
@@ -83,25 +98,20 @@ async function openFile() {
     }
 }
 
-// Сохранить изменения в файл
+// Сохранить изменения
 async function saveFile(showNotification = true) {
     if (!fileHandle) {
-        showStatus('❌ Сначала откройте файл', 'error');
+        showStatus('❌ Сначала откройте файл базы', 'error');
         return false;
     }
     
     try {
         const writable = await fileHandle.createWritable();
-        await writable.write(JSON.stringify(medicines, null, 2));
+        await writable.write(JSON.stringify(database, null, 2));
         await writable.close();
         
-        hasUnsavedChanges = false;
-        updateSaveButtonState();
-        
         if (showNotification) {
-            showStatus('✅ Файл успешно сохранен!', 'success');
-        } else {
-            showStatus('💾 Автосохранено', 'autosave');
+            showStatus('✅ База успешно сохранена!', 'success');
         }
         
         return true;
@@ -113,190 +123,292 @@ async function saveFile(showNotification = true) {
     }
 }
 
-// Отложить сохранение (для автосохранения)
-function scheduleAutoSave() {
-    if (!autoSaveEnabled || !fileHandle) return;
-    
-    hasUnsavedChanges = true;
-    updateSaveButtonState();
-    
-    // Очистить предыдущий таймер
-    if (saveTimeout) {
-        clearTimeout(saveTimeout);
-    }
-    
-    // Сохранить через 2 секунды после последнего изменения
-    saveTimeout = setTimeout(() => {
-        saveFile(false);
-    }, 2000);
+// Обновить счетчики
+function updateCounts() {
+    storeCount.textContent = database.store.length;
+    salesCount.textContent = database.sales.length;
 }
 
-// Отрисовать таблицу
-function renderTable() {
-    tableBody.innerHTML = '';
-    
-    if (medicines.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="4" style="text-align: center; padding: 20px;">Нет данных. Добавьте первое лекарство!</td>';
-        tableBody.appendChild(row);
-        return;
-    }
-    
-    medicines.forEach((medicine, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${medicine.barcode}</td>
-            <td>${medicine.name}</td>
-            <td>${medicine.quantity}</td>
-            <td>
-                <button class="btn btn-edit" onclick="editMedicine(${index})">✏️ Изменить</button>
-                <button class="btn btn-danger" onclick="deleteMedicine(${index})">🗑️ Удалить</button>
-            </td>
-        `;
-        tableBody.appendChild(row);
-    });
-    
-    tableContainer.style.display = 'block';
-}
-
-// Включить кнопки после загрузки файла
+// Включить кнопки
 function enableButtons() {
     btnSave.disabled = false;
-    btnAdd.disabled = false;
-    document.getElementById('btnAutoSave').disabled = false;
+    btnScan.disabled = false;
+    btnViewStore.disabled = false;
+    btnViewSales.disabled = false;
 }
 
-// Обновить состояние кнопки сохранения
-function updateSaveButtonState() {
-    if (hasUnsavedChanges) {
-        btnSave.innerHTML = '💾 Сохранить*';
-        btnSave.style.background = '#FF9800';
-    } else {
-        btnSave.innerHTML = '💾 Сохранить';
-        btnSave.style.background = '';
+// Инициализация сканера
+async function initScanner() {
+    try {
+        html5QrCode = new Html5Qrcode("video");
+    } catch (err) {
+        console.error('Ошибка инициализации сканера:', err);
+        showStatus('❌ Не удалось инициализировать сканер', 'error');
     }
 }
 
-// Переключить автосохранение
-function toggleAutoSave() {
-    autoSaveEnabled = !autoSaveEnabled;
-    const btn = document.getElementById('btnAutoSave');
+// Начать сканирование
+async function startScanning() {
+    if (!html5QrCode) {
+        await initScanner();
+    }
     
-    if (autoSaveEnabled) {
-        btn.classList.add('active');
-        btn.innerHTML = '🔄 Автосохранение: ВКЛ';
-        showStatus('✅ Автосохранение включено', 'autosave');
+    try {
+        cameraContainer.style.display = 'block';
+        isScanning = true;
         
-        // Если есть несохраненные изменения, сохранить сразу
-        if (hasUnsavedChanges && fileHandle) {
-            saveFile(false);
-        }
-    } else {
-        btn.classList.remove('active');
-        btn.innerHTML = '🔄 Автосохранение: ВЫКЛ';
-        showStatus('ℹ️ Автосохранение выключено', 'info');
+        await html5QrCode.start(
+            { facingMode: "environment" },
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 150 }
+            },
+            onScanSuccess,
+            onScanFailure
+        );
         
-        // Очистить таймер
-        if (saveTimeout) {
-            clearTimeout(saveTimeout);
-            saveTimeout = null;
+        showStatus('📷 Камера активна. Наведите на штрихкод', 'info');
+        
+    } catch (err) {
+        console.error('Ошибка запуска камеры:', err);
+        showStatus('❌ Не удалось запустить камеру: ' + err.message, 'error');
+        cameraContainer.style.display = 'none';
+        isScanning = false;
+    }
+}
+
+// Остановить сканирование
+async function stopScanning() {
+    if (html5QrCode && isScanning) {
+        try {
+            await html5QrCode.stop();
+        } catch (err) {
+            console.error('Ошибка остановки сканера:', err);
         }
     }
-}
-
-// Добавить новое лекарство
-function addMedicine() {
-    editingIndex = null;
-    modalTitle.textContent = 'Добавить лекарство';
-    document.getElementById('barcode').value = '';
-    document.getElementById('name').value = '';
-    document.getElementById('quantity').value = '';
-    modal.style.display = 'block';
-}
-
-// Редактировать лекарство
-function editMedicine(index) {
-    editingIndex = index;
-    const medicine = medicines[index];
     
-    modalTitle.textContent = 'Редактировать лекарство';
-    document.getElementById('barcode').value = medicine.barcode;
-    document.getElementById('name').value = medicine.name;
-    document.getElementById('quantity').value = medicine.quantity;
-    
-    modal.style.display = 'block';
+    cameraContainer.style.display = 'none';
+    isScanning = false;
+    showStatus('📷 Камера остановлена', 'info');
 }
 
-// Удалить лекарство
-function deleteMedicine(index) {
-    if (confirm('Вы уверены, что хотите удалить это лекарство?')) {
-        medicines.splice(index, 1);
-        renderTable();
-        scheduleAutoSave();
-        showStatus('🗑️ Лекарство удалено', 'info');
+// Успешное сканирование
+function onScanSuccess(decodedText, decodedResult) {
+    // Проверяем, что это похоже на SGTIN (цифры и буквы)
+    const sgtin = decodedText.trim();
+    
+    if (sgtin.length > 0) {
+        // Останавливаем сканирование после успешного считывания
+        stopScanning();
+        
+        // Обрабатываем SGTIN
+        processSGTIN(sgtin);
     }
 }
 
-// Обработка формы
-editForm.addEventListener('submit', function(e) {
-    e.preventDefault();
+// Ошибка сканирования (игнорируем)
+function onScanFailure(error) {
+    // Просто игнорируем ошибки сканирования
+}
+
+// Обработка SGTIN
+function processSGTIN(sgtin) {
+    showStatus(`🔍 Поиск SGTIN: ${sgtin}`, 'info');
     
-    const barcode = document.getElementById('barcode').value.trim();
-    const name = document.getElementById('name').value.trim();
-    const quantity = parseInt(document.getElementById('quantity').value);
+    // Ищем в запасах
+    const inStore = database.store.find(item => item.SGTIN === sgtin);
     
-    const medicine = {
-        barcode: barcode,
-        name: name,
-        quantity: quantity
-    };
+    // Ищем в продажах
+    const inSales = database.sales.find(item => item.SGTIN === sgtin);
     
-    if (editingIndex !== null) {
-        // Редактирование существующего
-        medicines[editingIndex] = medicine;
-        showStatus('✏️ Лекарство обновлено', 'info');
+    if (inStore) {
+        // Есть в запасах - предложить продать
+        showConfirm(
+            'Продажа лекарства',
+            `Найдено в запасах:<br><strong>${inStore.name}</strong><br>SGTIN: ${sgtin}<br><br>Перевести в продажи?`,
+            () => {
+                // Переместить из запасов в продажи
+                database.store = database.store.filter(item => item.SGTIN !== sgtin);
+                database.sales.push(inStore);
+                updateCounts();
+                saveFile(false);
+                showStatus(`✅ Продано: ${inStore.name}`, 'success');
+            }
+        );
+    } else if (inSales) {
+        // Есть в продажах - предложить вернуть
+        showConfirm(
+            'Возврат лекарства',
+            `Найдено в продажах:<br><strong>${inSales.name}</strong><br>SGTIN: ${sgtin}<br><br>Вернуть в запасы?`,
+            () => {
+                // Переместить из продаж в запасы
+                database.sales = database.sales.filter(item => item.SGTIN !== sgtin);
+                database.store.push(inSales);
+                updateCounts();
+                saveFile(false);
+                showStatus(`↩️ Возвращено: ${inSales.name}`, 'success');
+            }
+        );
     } else {
-        // Добавление нового
-        medicines.push(medicine);
-        showStatus('➕ Лекарство добавлено', 'info');
+        // Не найдено нигде
+        showStatus(`❌ SGTIN ${sgtin} не найден ни в запасах, ни в продажах`, 'warning');
     }
-    
-    renderTable();
-    scheduleAutoSave();
-    closeModal();
-});
+}
+
+// Показать диалог подтверждения
+function showConfirm(title, message, onConfirm) {
+    confirmTitle.textContent = title;
+    confirmMessage.innerHTML = message;
+    confirmCallback = onConfirm;
+    confirmModal.style.display = 'block';
+}
 
 // Закрыть модальное окно
 function closeModal() {
-    modal.style.display = 'none';
-    editForm.reset();
-    editingIndex = null;
+    confirmModal.style.display = 'none';
+    confirmCallback = null;
 }
 
-// Закрытие по крестику
-closeBtn.addEventListener('click', closeModal);
-
-// Закрытие по клику вне модального окна
-window.addEventListener('click', function(e) {
-    if (e.target === modal) {
-        closeModal();
+// Обработка ручного ввода
+function handleManualInput() {
+    const sgtin = sgtinInput.value.trim();
+    
+    if (!sgtin) {
+        showStatus('⚠️ Введите SGTIN', 'warning');
+        return;
     }
-});
+    
+    processSGTIN(sgtin);
+    sgtinInput.value = '';
+}
 
-// Предупреждение при закрытии страницы с несохраненными изменениями
-window.addEventListener('beforeunload', function(e) {
-    if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
+// Показать запасы
+function showStore() {
+    storeBody.innerHTML = '';
+    
+    if (database.store.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="3" style="text-align: center; padding: 20px;">Запасы пусты</td>';
+        storeBody.appendChild(row);
+    } else {
+        database.store.forEach((item, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="sgtin-code">${item.SGTIN}</td>
+                <td>${item.name}</td>
+                <td>
+                    <button class="btn btn-warning" onclick="sellItem(${index})">💰 Продать</button>
+                </td>
+            `;
+            storeBody.appendChild(row);
+        });
     }
-});
+    
+    storeView.style.display = 'block';
+    salesView.style.display = 'none';
+}
+
+// Показать продажи
+function showSales() {
+    salesBody.innerHTML = '';
+    
+    if (database.sales.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="3" style="text-align: center; padding: 20px;">Продаж пока нет</td>';
+        salesBody.appendChild(row);
+    } else {
+        database.sales.forEach((item, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="sgtin-code">${item.SGTIN}</td>
+                <td>${item.name}</td>
+                <td>
+                    <button class="btn btn-info" onclick="returnItem(${index})">↩️ Вернуть</button>
+                </td>
+            `;
+            salesBody.appendChild(row);
+        });
+    }
+    
+    salesView.style.display = 'block';
+    storeView.style.display = 'none';
+}
+
+// Продать товар из таблицы
+window.sellItem = function(index) {
+    const item = database.store[index];
+    showConfirm(
+        'Продажа лекарства',
+        `<strong>${item.name}</strong><br>SGTIN: ${item.SGTIN}<br><br>Подтверждаете продажу?`,
+        () => {
+            database.store.splice(index, 1);
+            database.sales.push(item);
+            updateCounts();
+            saveFile(false);
+            showStore();
+            showStatus(`✅ Продано: ${item.name}`, 'success');
+        }
+    );
+};
+
+// Вернуть товар из таблицы
+window.returnItem = function(index) {
+    const item = database.sales[index];
+    showConfirm(
+        'Возврат лекарства',
+        `<strong>${item.name}</strong><br>SGTIN: ${item.SGTIN}<br><br>Подтверждаете возврат?`,
+        () => {
+            database.sales.splice(index, 1);
+            database.store.push(item);
+            updateCounts();
+            saveFile(false);
+            showSales();
+            showStatus(`↩️ Возвращено: ${item.name}`, 'success');
+        }
+    );
+};
 
 // Event listeners
 btnOpen.addEventListener('click', openFile);
 btnSave.addEventListener('click', () => saveFile(true));
-btnAdd.addEventListener('click', addMedicine);
+btnScan.addEventListener('click', startScanning);
+btnStopScan.addEventListener('click', stopScanning);
+btnViewStore.addEventListener('click', showStore);
+btnViewSales.addEventListener('click', showSales);
+btnManualSubmit.addEventListener('click', handleManualInput);
 
-document.getElementById('btnAutoSave').addEventListener('click', toggleAutoSave);
+document.getElementById('btnCloseStore').addEventListener('click', () => {
+    storeView.style.display = 'none';
+});
+
+document.getElementById('btnCloseSales').addEventListener('click', () => {
+    salesView.style.display = 'none';
+});
+
+btnConfirmYes.addEventListener('click', () => {
+    if (confirmCallback) {
+        confirmCallback();
+    }
+    closeModal();
+});
+
+btnConfirmNo.addEventListener('click', closeModal);
+
+closeBtn.addEventListener('click', closeModal);
+
+window.addEventListener('click', function(e) {
+    if (e.target === confirmModal) {
+        closeModal();
+    }
+});
+
+// Предупреждение при закрытии
+window.addEventListener('beforeunload', function(e) {
+    if (fileHandle) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
 
 // Инициализация
 checkSupport();
