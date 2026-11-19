@@ -416,16 +416,14 @@ checkSupport();
 // Регистрация Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        // Вычисляем правильный путь относительно текущей страницы
-        const swPath = new URL('service-worker.js', import.meta.url || window.location.href).pathname;
-        
-        navigator.serviceWorker.register(swPath)
+        // Используем относительный путь './', так как service-worker.js лежит рядом с index.html
+        navigator.serviceWorker.register('./service-worker.js')
             .then((registration) => {
                 console.log('Service Worker зарегистрирован:', registration.scope);
             })
             .catch((error) => {
-                // Тихо игнорируем, если файла нет или ошибка сети
-                console.log('SW не загружен:', error.message);
+                // Просто логируем, чтобы не пугать пользователя красными ошибками, если файла нет
+                console.log('Service Worker не найден (это нормально, если файл еще не создан):', error.message);
             });
     });
 }
