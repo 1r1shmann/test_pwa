@@ -276,3 +276,37 @@ tbody tr:nth-child(even) {
         font-size: 14px;
     }
 }
+.btn-secondary {
+    background: #9E9E9E;
+    color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #757575;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(158, 158, 158, 0.4);
+}
+
+.btn-secondary.active {
+    background: #4CAF50;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+    }
+}
+
+.status.autosave {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+    font-size: 0.9em;
+}
