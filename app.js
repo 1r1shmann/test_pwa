@@ -16,8 +16,6 @@ const btnViewStore = document.getElementById('btnViewStore');
 const btnViewSales = document.getElementById('btnViewSales');
 const statusDiv = document.getElementById('status');
 const cameraContainer = document.getElementById('cameraContainer');
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
 const btnStopScan = document.getElementById('btnStopScan');
 const sgtinInput = document.getElementById('sgtinInput');
 const btnManualSubmit = document.getElementById('btnManualSubmit');
@@ -87,9 +85,6 @@ async function openFile() {
         enableButtons();
         showStatus(`✅ База загружена: ${database.store.length} в запасах, ${database.sales.length} в продажах`, 'success');
         
-        // Автосохранение включено по умолчанию
-        showStatus('💾 Автосохранение активно', 'autosave');
-        
     } catch (err) {
         if (err.name !== 'AbortError') {
             console.error('Ошибка открытия файла:', err);
@@ -137,97 +132,109 @@ function enableButtons() {
     btnViewSales.disabled = false;
 }
 
-// Инициализация сканера
-async function initScanner() {
-    try {
-        html5QrCode = new Html5Qrcode("video");
-    } catch (err) {
-        console.error('Ошибка инициализации сканера:', err);
-        showStatus('❌ Не удалось инициализировать сканер', 'error');
-    }
-}
+// --- ЛОГИКА СКАНЕРА (Интегрированная из вашего примера) ---
 
-// Начать сканирование
 async function startScanning() {
+    if (isScanning) return;
+
+    // Инициализируем сканер только если он еще не создан
     if (!html5QrCode) {
-        await initScanner();
+        try {
+            // Убедитесь, что Html5Qrcode доступен глобально из html5-qrcode.min.js
+            if (typeof Html5Qrcode === 'undefined') {
+                throw new Error('Библиотека html5-qrcode не загружена');
+            }
+            html5QrCode = new Html5Qrcode("reader");
+        } catch (err) {
+            showStatus('❌ Ошибка инициализации библиотеки сканера', 'error');
+            console.error(err);
+            return;
+        }
     }
-    
+
     try {
         cameraContainer.style.display = 'block';
         isScanning = true;
-        
+        showStatus('📷 Камера активна. Наведите на DataMatrix...', 'info');
+
         await html5QrCode.start(
-            { facingMode: "environment" },
             {
-                fps: 10,
-                qrbox: { width: 250, height: 150 }
+                facingMode: { exact: "environment" } // Используем заднюю камеру
+            },
+            {
+                fps: 15,
+                qrbox: (width, height) => {
+                    // Квадратная область сканирования, как в вашем примере
+                    let size = Math.min(width, height) * 0.8;
+                    return { width: size, height: size };
+                },
+                aspectRatio: 1.0,
+                disableFlip: false,
+                // ВАЖНО: Поддержка именно DataMatrix для маркировки
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.DATA_MATRIX,
+                    Html5QrcodeSupportedFormats.QR_CODE, // На всякий случай оставим и QR
+                    Html5QrcodeSupportedFormats.EAN_13,  // И обычные штрихкоды
+                    Html5QrcodeSupportedFormats.CODE_128
+                ]
             },
             onScanSuccess,
             onScanFailure
         );
-        
-        showStatus('📷 Камера активна. Наведите на штрихкод', 'info');
-        
+
     } catch (err) {
         console.error('Ошибка запуска камеры:', err);
-        showStatus('❌ Не удалось запустить камеру: ' + err.message, 'error');
+        showStatus('❌ Не удалось запустить камеру. Проверьте разрешения.', 'error');
         cameraContainer.style.display = 'none';
         isScanning = false;
     }
 }
 
-// Остановить сканирование
 async function stopScanning() {
-    if (html5QrCode && isScanning) {
-        try {
-            await html5QrCode.stop();
-        } catch (err) {
-            console.error('Ошибка остановки сканера:', err);
-        }
+    if (!html5QrCode || !isScanning) return;
+    
+    try {
+        await html5QrCode.stop();
+        // clear() может вызывать ошибки в некоторых версиях, поэтому используем осторожно
+        // await html5QrCode.clear(); 
+    } catch (err) {
+        console.error('Ошибка остановки:', err);
     }
     
     cameraContainer.style.display = 'none';
     isScanning = false;
-    showStatus('📷 Камера остановлена', 'info');
+    showStatus('📷 Сканирование остановлено', 'info');
 }
 
-// Успешное сканирование
 function onScanSuccess(decodedText, decodedResult) {
-    // Проверяем, что это похоже на SGTIN (цифры и буквы)
     const sgtin = decodedText.trim();
-    
     if (sgtin.length > 0) {
-        // Останавливаем сканирование после успешного считывания
-        stopScanning();
+        // Вибрация при успехе
+        if (navigator.vibrate) navigator.vibrate(100);
         
-        // Обрабатываем SGTIN
+        stopScanning();
         processSGTIN(sgtin);
     }
 }
 
-// Ошибка сканирования (игнорируем)
 function onScanFailure(error) {
-    // Просто игнорируем ошибки сканирования
+    // Игнорируем ошибки сканирования (когда код не найден в кадре)
 }
+
+// --- КОНЕЦ ЛОГИКИ СКАНЕРА ---
 
 // Обработка SGTIN
 function processSGTIN(sgtin) {
     showStatus(`🔍 Поиск SGTIN: ${sgtin}`, 'info');
     
-    // Ищем в запасах
     const inStore = database.store.find(item => item.SGTIN === sgtin);
-    
-    // Ищем в продажах
     const inSales = database.sales.find(item => item.SGTIN === sgtin);
     
     if (inStore) {
-        // Есть в запасах - предложить продать
         showConfirm(
             'Продажа лекарства',
             `Найдено в запасах:<br><strong>${inStore.name}</strong><br>SGTIN: ${sgtin}<br><br>Перевести в продажи?`,
             () => {
-                // Переместить из запасов в продажи
                 database.store = database.store.filter(item => item.SGTIN !== sgtin);
                 database.sales.push(inStore);
                 updateCounts();
@@ -236,12 +243,10 @@ function processSGTIN(sgtin) {
             }
         );
     } else if (inSales) {
-        // Есть в продажах - предложить вернуть
         showConfirm(
             'Возврат лекарства',
             `Найдено в продажах:<br><strong>${inSales.name}</strong><br>SGTIN: ${sgtin}<br><br>Вернуть в запасы?`,
             () => {
-                // Переместить из продаж в запасы
                 database.sales = database.sales.filter(item => item.SGTIN !== sgtin);
                 database.store.push(inSales);
                 updateCounts();
@@ -250,7 +255,6 @@ function processSGTIN(sgtin) {
             }
         );
     } else {
-        // Не найдено нигде
         showStatus(`❌ SGTIN ${sgtin} не найден ни в запасах, ни в продажах`, 'warning');
     }
 }
@@ -272,12 +276,10 @@ function closeModal() {
 // Обработка ручного ввода
 function handleManualInput() {
     const sgtin = sgtinInput.value.trim();
-    
     if (!sgtin) {
         showStatus('⚠️ Введите SGTIN', 'warning');
         return;
     }
-    
     processSGTIN(sgtin);
     sgtinInput.value = '';
 }
@@ -285,25 +287,19 @@ function handleManualInput() {
 // Показать запасы
 function showStore() {
     storeBody.innerHTML = '';
-    
     if (database.store.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="3" style="text-align: center; padding: 20px;">Запасы пусты</td>';
-        storeBody.appendChild(row);
+        storeBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;">Запасы пусты</td></tr>';
     } else {
         database.store.forEach((item, index) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td class="sgtin-code">${item.SGTIN}</td>
                 <td>${item.name}</td>
-                <td>
-                    <button class="btn btn-warning" onclick="sellItem(${index})">💰 Продать</button>
-                </td>
+                <td><button class="btn btn-warning" onclick="sellItem(${index})">💰 Продать</button></td>
             `;
             storeBody.appendChild(row);
         });
     }
-    
     storeView.style.display = 'block';
     salesView.style.display = 'none';
 }
@@ -311,61 +307,46 @@ function showStore() {
 // Показать продажи
 function showSales() {
     salesBody.innerHTML = '';
-    
     if (database.sales.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="3" style="text-align: center; padding: 20px;">Продаж пока нет</td>';
-        salesBody.appendChild(row);
+        salesBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;">Продаж пока нет</td></tr>';
     } else {
         database.sales.forEach((item, index) => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td class="sgtin-code">${item.SGTIN}</td>
                 <td>${item.name}</td>
-                <td>
-                    <button class="btn btn-info" onclick="returnItem(${index})">↩️ Вернуть</button>
-                </td>
+                <td><button class="btn btn-info" onclick="returnItem(${index})">↩️ Вернуть</button></td>
             `;
             salesBody.appendChild(row);
         });
     }
-    
     salesView.style.display = 'block';
     storeView.style.display = 'none';
 }
 
-// Продать товар из таблицы
+// Глобальные функции для кнопок в таблице
 window.sellItem = function(index) {
     const item = database.store[index];
-    showConfirm(
-        'Продажа лекарства',
-        `<strong>${item.name}</strong><br>SGTIN: ${item.SGTIN}<br><br>Подтверждаете продажу?`,
-        () => {
-            database.store.splice(index, 1);
-            database.sales.push(item);
-            updateCounts();
-            saveFile(false);
-            showStore();
-            showStatus(`✅ Продано: ${item.name}`, 'success');
-        }
-    );
+    showConfirm('Продажа', `<strong>${item.name}</strong><br>Подтверждаете продажу?`, () => {
+        database.store.splice(index, 1);
+        database.sales.push(item);
+        updateCounts();
+        saveFile(false);
+        showStore();
+        showStatus(`✅ Продано: ${item.name}`, 'success');
+    });
 };
 
-// Вернуть товар из таблицы
 window.returnItem = function(index) {
     const item = database.sales[index];
-    showConfirm(
-        'Возврат лекарства',
-        `<strong>${item.name}</strong><br>SGTIN: ${item.SGTIN}<br><br>Подтверждаете возврат?`,
-        () => {
-            database.sales.splice(index, 1);
-            database.store.push(item);
-            updateCounts();
-            saveFile(false);
-            showSales();
-            showStatus(`↩️ Возвращено: ${item.name}`, 'success');
-        }
-    );
+    showConfirm('Возврат', `<strong>${item.name}</strong><br>Подтверждаете возврат?`, () => {
+        database.sales.splice(index, 1);
+        database.store.push(item);
+        updateCounts();
+        saveFile(false);
+        showSales();
+        showStatus(`↩️ Возвращено: ${item.name}`, 'success');
+    });
 };
 
 // Event listeners
@@ -377,33 +358,22 @@ btnViewStore.addEventListener('click', showStore);
 btnViewSales.addEventListener('click', showSales);
 btnManualSubmit.addEventListener('click', handleManualInput);
 
-document.getElementById('btnCloseStore').addEventListener('click', () => {
-    storeView.style.display = 'none';
-});
-
-document.getElementById('btnCloseSales').addEventListener('click', () => {
-    salesView.style.display = 'none';
-});
+document.getElementById('btnCloseStore').addEventListener('click', () => storeView.style.display = 'none');
+document.getElementById('btnCloseSales').addEventListener('click', () => salesView.style.display = 'none');
 
 btnConfirmYes.addEventListener('click', () => {
-    if (confirmCallback) {
-        confirmCallback();
-    }
+    if (confirmCallback) confirmCallback();
     closeModal();
 });
 
 btnConfirmNo.addEventListener('click', closeModal);
-
 closeBtn.addEventListener('click', closeModal);
 
-window.addEventListener('click', function(e) {
-    if (e.target === confirmModal) {
-        closeModal();
-    }
+window.addEventListener('click', (e) => {
+    if (e.target === confirmModal) closeModal();
 });
 
-// Предупреждение при закрытии
-window.addEventListener('beforeunload', function(e) {
+window.addEventListener('beforeunload', (e) => {
     if (fileHandle) {
         e.preventDefault();
         e.returnValue = '';
@@ -416,14 +386,8 @@ checkSupport();
 // Регистрация Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        // Используем относительный путь './', так как service-worker.js лежит рядом с index.html
         navigator.serviceWorker.register('./service-worker.js')
-            .then((registration) => {
-                console.log('Service Worker зарегистрирован:', registration.scope);
-            })
-            .catch((error) => {
-                // Просто логируем, чтобы не пугать пользователя красными ошибками, если файла нет
-                console.log('Service Worker не найден (это нормально, если файл еще не создан):', error.message);
-            });
+            .then(reg => console.log('SW registered'))
+            .catch(err => console.log('SW error:', err));
     });
 }
